@@ -1,0 +1,5 @@
+{
+  "name": "FoodBridge AI",
+  "description": "AI-powered food rescue platform connecting donors to recipients using Gemini Vision and Reasoning.",
+  "requestFramePermissions": []
+}
