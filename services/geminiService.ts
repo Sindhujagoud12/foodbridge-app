@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { AnalysisResult, Donation, MatchResult, RecipientNeed } from "../types";
 
 const getClient = () => {
@@ -9,11 +9,23 @@ const getClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// Helper to reliably parse JSON even if the model wraps it in Markdown
+const parseResponse = (text: string) => {
+  try {
+    // Attempt clean parse
+    return JSON.parse(text);
+  } catch (e) {
+    // Attempt to strip markdown code blocks
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
+  }
+};
+
 export const analyzeFoodImage = async (base64Image: string): Promise<AnalysisResult> => {
   const ai = getClient();
   
   // Remove data URL prefix if present for the raw data
-  const base64Data = base64Image.split(',')[1] || base64Image;
+  const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
   try {
     const response = await ai.models.generateContent({
@@ -38,7 +50,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<AnalysisRes
           },
           {
             inlineData: {
-              mimeType: 'image/jpeg',
+              mimeType: 'image/jpeg', 
               data: base64Data
             }
           }
@@ -50,7 +62,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<AnalysisRes
     });
 
     if (response.text) {
-      return JSON.parse(response.text) as AnalysisResult;
+      return parseResponse(response.text) as AnalysisResult;
     }
     throw new Error("Empty response from AI");
   } catch (error) {
@@ -65,11 +77,15 @@ export const analyzeFoodImage = async (base64Image: string): Promise<AnalysisRes
 export const matchDonations = async (donations: Donation[], needs: RecipientNeed[]): Promise<MatchResult> => {
   const ai = getClient();
 
+  // CRITICAL: Strip the base64 imageUrl to avoid sending massive payloads to the text model
+  // The logic model only needs metadata (item, category, expiry), not the pixel data.
+  const sanitizedDonations = donations.map(({ imageUrl, ...rest }) => rest);
+
   const prompt = `
     Act as a smart logistics coordinator.
     
     Available Donations:
-    ${JSON.stringify(donations, null, 2)}
+    ${JSON.stringify(sanitizedDonations, null, 2)}
     
     Recipient Needs:
     ${JSON.stringify(needs, null, 2)}
@@ -91,7 +107,7 @@ export const matchDonations = async (donations: Donation[], needs: RecipientNeed
     });
 
     if (response.text) {
-      return JSON.parse(response.text) as MatchResult;
+      return parseResponse(response.text) as MatchResult;
     }
     throw new Error("Empty response from AI");
 

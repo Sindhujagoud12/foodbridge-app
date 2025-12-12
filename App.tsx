@@ -53,7 +53,8 @@ const App: React.FC = () => {
     if (result && !result.error) {
       setAnalysisResult(result);
       // Pre-fill form
-      const item = result.food_items[0];
+      // Use optional chaining in case the AI returns an unexpected structure
+      const item = result.food_items?.[0];
       if (item) {
         setFormState({
           item: item.item,
